@@ -46,11 +46,11 @@ except urllib.error as e:
 conn.commit()
 
 cur.execute('SELECT info_card_url FROM Models WHERE album_list_url is NULL')
-info_url_lst = cur.fetchall()
-for info_url in info_url_lst:
-    go_info_url = info_url[0]
+info_card_url_lst = cur.fetchall()
+for info_card_url in info_card_url_lst:
+    go_info_card_url = info_card_url[0]
     try:
-        request = urllib.request.Request(url=go_info_url, headers=header)
+        request = urllib.request.Request(url=go_info_card_url, headers=header)
         response = urllib.request.urlopen(url=request, context=ctx)
         html = response.read()
         soup = BeautifulSoup(html, 'html.parser')
@@ -63,7 +63,7 @@ for info_url in info_url_lst:
                     comp_album_list_url = 'https:' + album_list_url
                     # print(comp_album_list_url)
                     cur.execute('UPDATE Models SET album_list_url = ? WHERE info_card_url = ?',
-                                (comp_album_list_url, go_info_url))
+                                (comp_album_list_url, go_info_card_url))
             except:
                 pass
     except urllib.error as e:
@@ -80,9 +80,9 @@ album_list_url_lst = cur.fetchall()
 driver = webdriver.PhantomJS()
 
 for album_list_url in album_list_url_lst:
-    go_album_url = album_list_url[0]
+    go_album_list_url = album_list_url[0]
     try:
-        driver.get(go_album_url)
+        driver.get(go_album_list_url)
         element_lst = driver.find_elements_by_class_name('mm-first')
         the_albums_url_lst = list()
         for element in element_lst:
@@ -90,7 +90,7 @@ for album_list_url in album_list_url_lst:
         # print(the_albums_url_lst)
         the_album_url_lst_str = ','.join(the_albums_url_lst)
         cur.execute('UPDATE Models SET the_albums_url = ? WHERE album_list_url = ?',
-                    (the_album_url_lst_str, go_album_url))
+                    (the_album_url_lst_str, go_album_list_url))
     except:
         pass
 
@@ -100,11 +100,11 @@ cur.execute('SELECT the_albums_url FROM Models WHERE the_pic_url is NULL')
 the_album_url_lst = cur.fetchall()
 
 for the_album_url in the_album_url_lst:
-    go_albums_url_str = the_album_url[0]
-    go_album_url_lst = go_albums_url_str.split(',')
-    for go_album_url in go_album_url_lst:
+    go_the_albums_url_str = the_album_url[0]
+    go_the_album_url_lst = go_the_albums_url_str.split(',')
+    for go_the_album_url in go_the_album_url_lst:
         try:
-            driver.get(go_album_url)
+            driver.get(go_the_album_url)
             element_lst = driver.find_elements_by_class_name('mm-photoimg-area')
             for element in element_lst:
                 try:
