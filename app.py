@@ -5,12 +5,14 @@ import urllib.request, urllib.error
 from bs4 import BeautifulSoup
 import re
 from selenium import webdriver
+import os
+import time
 
 conn = sqlite3.connect('models.sqlite')
 cur = conn.cursor()
 cur.execute('DROP TABLE IF EXISTS Models')
 cur.execute('CREATE TABLE Models (user_id TEXT PRIMARY KEY, name TEXT, '
-            'info_card_url TEXT, album_list_url TEXT, the_albums_url TEXT, the_pic_url TEXT)')
+            'info_card_url TEXT, albums_list_url TEXT, the_albums_url TEXT, the_pics_url TEXT)')
 
 ctx = ssl.create_default_context()
 ctx.check_hostname = False
@@ -45,7 +47,7 @@ except urllib.error as e:
 
 conn.commit()
 
-cur.execute('SELECT info_card_url FROM Models WHERE album_list_url is NULL')
+cur.execute('SELECT info_card_url FROM Models WHERE albums_list_url is NULL')
 info_card_url_lst = cur.fetchall()
 for info_card_url in info_card_url_lst:
     go_info_card_url = info_card_url[0]
@@ -62,7 +64,7 @@ for info_card_url in info_card_url_lst:
                     album_list_url = tag.get('href', None)
                     comp_album_list_url = 'https:' + album_list_url
                     # print(comp_album_list_url)
-                    cur.execute('UPDATE Models SET album_list_url = ? WHERE info_card_url = ?',
+                    cur.execute('UPDATE Models SET albums_list_url = ? WHERE info_card_url = ?',
                                 (comp_album_list_url, go_info_card_url))
             except:
                 pass
@@ -74,37 +76,48 @@ for info_card_url in info_card_url_lst:
 
 conn.commit()
 
-cur.execute('SELECT album_list_url FROM Models WHERE the_albums_url is NULL')
-album_list_url_lst = cur.fetchall()
+cur.execute('SELECT albums_list_url FROM Models WHERE the_albums_url is NULL')
+albums_list_url_lst = cur.fetchall()
 
 driver = webdriver.PhantomJS()
 
-for album_list_url in album_list_url_lst:
-    go_album_list_url = album_list_url[0]
+for albums_list_url in albums_list_url_lst:
+    go_albums_list_url = albums_list_url[0]
     try:
-        driver.get(go_album_list_url)
+        driver.get(go_albums_list_url)
         element_lst = driver.find_elements_by_class_name('mm-first')
         the_albums_url_lst = list()
         for element in element_lst:
             the_albums_url_lst.append(element.get_attribute('href'))
         # print(the_albums_url_lst)
-        the_album_url_lst_str = ','.join(the_albums_url_lst)
-        cur.execute('UPDATE Models SET the_albums_url = ? WHERE album_list_url = ?',
-                    (the_album_url_lst_str, go_album_list_url))
+        the_albums_url_lst_str = ','.join(the_albums_url_lst)
+        cur.execute('UPDATE Models SET the_albums_url = ? WHERE albums_list_url = ?',
+                    (the_albums_url_lst_str, go_albums_list_url))
     except:
         pass
 
 conn.commit()
 
-cur.execute('SELECT the_albums_url FROM Models WHERE the_pic_url is NULL')
-the_album_url_lst = cur.fetchall()
+cur.execute('SELECT the_albums_url, name FROM Models WHERE the_pics_url is NULL')
+the_albums_url_names_lst = cur.fetchall()
 
-for the_album_url in the_album_url_lst:
-    go_the_albums_url_str = the_album_url[0]
-    go_the_album_url_lst = go_the_albums_url_str.split(',')
-    for go_the_album_url in go_the_album_url_lst:
+for the_albums_url in the_albums_url_names_lst:
+    name = the_albums_url[1]
+    path = 'Models' + '/' + name.strip()
+    isThere = os.path.exists(path)
+    if not isThere:
+        os.makedirs(path)
+    print(name)
+    go_the_albums_url_str = the_albums_url[0]
+    go_the_albums_url_lst = go_the_albums_url_str.split(',')
+    the_pics_url_lst = list()
+    for go_the_album_url in go_the_albums_url_lst:
         try:
+            print(go_the_album_url)
             driver.get(go_the_album_url)
+            driver.implicitly_wait(5)
+            soup = BeautifulSoup(driver.page_source, 'html.parser')
+            tags = soup('mm-photoimg-area')
             element_lst = driver.find_elements_by_class_name('mm-photoimg-area')
             for element in element_lst:
                 try:
@@ -117,22 +130,35 @@ for the_album_url in the_album_url_lst:
                         for the_pic_class in the_pic_class_lst:
                             the_pic_tag = the_pic_class.find_element_by_tag_name('img')
                             the_pic = the_pic_tag.get_attribute('src')
-                            print(the_pic)
+                            the_pics_url_lst.append(the_pic)
                             request = urllib.request.Request(url=the_pic, headers=header)
                             response = urllib.request.urlopen(url=request, context=ctx)
                             data = response.read()
+                            the_album_id = re.findall('album_id=([0-9]\S+?)&', go_the_album_url)
+                            the_album_id = the_album_id[0]
+                            print(the_album_id)
+                            path = 'Models' + '/' + name.strip() + '/' + str(the_album_id).strip()
+                            isThere = os.path.exists(path)
+                            if not isThere:
+                                os.makedirs(path)
                             file_name = re.findall('/([A-Z]\S+?.jpg)', the_pic)
                             file_name = file_name[0]
-                            f = open('Models' + '/' + file_name, 'wb')
+                            print(file_name)
+                            f = open(path + '/' + file_name, 'wb')
                             f.write(data)
                             f.close()
                     except:
                         pass
-                except:
+                except BaseException as e:
                     pass
         except:
             pass
+    the_pics_url_lst_str = ','.join(the_pics_url_lst)
+    cur.execute('UPDATE Models SET the_pics_url = ? WHERE the_albums_url = ?',
+                (the_pics_url_lst_str, go_the_albums_url_str))
 
 driver.quit()
+
+conn.commit()
 
 conn.close()
