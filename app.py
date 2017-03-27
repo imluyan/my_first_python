@@ -4,12 +4,13 @@ import ssl
 import urllib.request, urllib.error
 from bs4 import BeautifulSoup
 import re
+from selenium import webdriver
 
 conn = sqlite3.connect('models.sqlite')
 cur = conn.cursor()
 cur.execute('DROP TABLE IF EXISTS Models')
 cur.execute('CREATE TABLE Models (user_id TEXT PRIMARY KEY, name TEXT, '
-            'info_card_url TEXT, album_list_url TEXT, the_album_url TEXT, the_pic_url TEXT)')
+            'info_card_url TEXT, album_list_url TEXT, the_albums_url TEXT, the_pic_url TEXT)')
 
 ctx = ssl.create_default_context()
 ctx.check_hostname = False
@@ -60,7 +61,7 @@ for info_url in info_url_lst:
                 if content == '相册':
                     album_list_url = tag.get('href', None)
                     comp_album_list_url = 'https:' + album_list_url
-                    print(comp_album_list_url)
+                    # print(comp_album_list_url)
                     cur.execute('UPDATE Models SET album_list_url = ? WHERE info_card_url = ?',
                                 (comp_album_list_url, go_info_url))
             except:
@@ -73,20 +74,65 @@ for info_url in info_url_lst:
 
 conn.commit()
 
-cur.execute('SELECT album_list_url FROM Models WHERE the_album_url is NULL')
-the_album_url = cur.fetchall()
-for album_url in the_album_url:
-    go_album_url = album_url[0]
+cur.execute('SELECT album_list_url FROM Models WHERE the_albums_url is NULL')
+album_list_url_lst = cur.fetchall()
+
+driver = webdriver.PhantomJS()
+
+for album_list_url in album_list_url_lst:
+    go_album_url = album_list_url[0]
     try:
-        request = urllib.request.Request(url=go_album_url, headers=header)
-        response = urllib.request.urlopen(url=request, context=ctx)
-        html = response.read()
-        soup = BeautifulSoup(html, 'html.parser')
-        print(soup.prettify())
-    except urllib.error as e:
-        if hasattr(e, 'code'):
-            print(e.code)
-        if hasattr(e, 'reason'):
-            print(e.reason)
+        driver.get(go_album_url)
+        element_lst = driver.find_elements_by_class_name('mm-first')
+        the_albums_url_lst = list()
+        for element in element_lst:
+            the_albums_url_lst.append(element.get_attribute('href'))
+        # print(the_albums_url_lst)
+        the_album_url_lst_str = ','.join(the_albums_url_lst)
+        cur.execute('UPDATE Models SET the_albums_url = ? WHERE album_list_url = ?',
+                    (the_album_url_lst_str, go_album_url))
+    except:
+        pass
+
+conn.commit()
+
+cur.execute('SELECT the_albums_url FROM Models WHERE the_pic_url is NULL')
+the_album_url_lst = cur.fetchall()
+
+for the_album_url in the_album_url_lst:
+    go_albums_url_str = the_album_url[0]
+    go_album_url_lst = go_albums_url_str.split(',')
+    for go_album_url in go_album_url_lst:
+        try:
+            driver.get(go_album_url)
+            element_lst = driver.find_elements_by_class_name('mm-photoimg-area')
+            for element in element_lst:
+                try:
+                    the_pic_url_tag = element.find_element_by_tag_name('a')
+                    the_pic_url = the_pic_url_tag.get_attribute('href')
+                    comp_the_pic_url = the_pic_url
+                    try:
+                        driver.get(comp_the_pic_url)
+                        the_pic_class_lst = driver.find_elements_by_class_name('mm-p-img-panel')
+                        for the_pic_class in the_pic_class_lst:
+                            the_pic_tag = the_pic_class.find_element_by_tag_name('img')
+                            the_pic = the_pic_tag.get_attribute('src')
+                            print(the_pic)
+                            request = urllib.request.Request(url=the_pic, headers=header)
+                            response = urllib.request.urlopen(url=request, context=ctx)
+                            data = response.read()
+                            file_name = re.findall('/([A-Z]\S+?.jpg)', the_pic)
+                            file_name = file_name[0]
+                            f = open('Models' + '/' + file_name, 'wb')
+                            f.write(data)
+                            f.close()
+                    except:
+                        pass
+                except:
+                    pass
+        except:
+            pass
+
+driver.quit()
 
 conn.close()
