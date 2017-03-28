@@ -114,42 +114,45 @@ for the_albums_url in the_albums_url_names_lst:
     for go_the_album_url in go_the_albums_url_lst:
         try:
             print(go_the_album_url)
-            driver.get(go_the_album_url)
             driver.implicitly_wait(5)
+            driver.get(go_the_album_url)
             soup = BeautifulSoup(driver.page_source, 'html.parser')
-            tags = soup('mm-photoimg-area')
-            element_lst = driver.find_elements_by_class_name('mm-photoimg-area')
+            element_lst = list()
+            comp_the_pic_url = None
+            tags = soup.find_all('div', {'class': 'mm-photoimg-area'})
+            for tag in tags:
+                try:
+                    the_pic_url = tag.contents[1]['href']
+                    comp_the_pic_url = 'https:' + the_pic_url
+                    element_lst.append(comp_the_pic_url)
+                except:
+                    pass
             for element in element_lst:
                 try:
-                    the_pic_url_tag = element.find_element_by_tag_name('a')
-                    the_pic_url = the_pic_url_tag.get_attribute('href')
-                    comp_the_pic_url = the_pic_url
-                    try:
-                        driver.get(comp_the_pic_url)
-                        the_pic_class_lst = driver.find_elements_by_class_name('mm-p-img-panel')
-                        for the_pic_class in the_pic_class_lst:
-                            the_pic_tag = the_pic_class.find_element_by_tag_name('img')
-                            the_pic = the_pic_tag.get_attribute('src')
-                            the_pics_url_lst.append(the_pic)
-                            request = urllib.request.Request(url=the_pic, headers=header)
-                            response = urllib.request.urlopen(url=request, context=ctx)
-                            data = response.read()
-                            the_album_id = re.findall('album_id=([0-9]\S+?)&', go_the_album_url)
-                            the_album_id = the_album_id[0]
-                            print(the_album_id)
-                            path = 'Models' + '/' + name.strip() + '/' + str(the_album_id).strip()
-                            isThere = os.path.exists(path)
-                            if not isThere:
-                                os.makedirs(path)
-                            file_name = re.findall('/([A-Z]\S+?.jpg)', the_pic)
-                            file_name = file_name[0]
-                            print(file_name)
-                            f = open(path + '/' + file_name, 'wb')
-                            f.write(data)
-                            f.close()
-                    except:
-                        pass
-                except BaseException as e:
+                    driver.implicitly_wait(0)
+                    driver.get(element)
+                    the_pic_class_lst = driver.find_elements_by_class_name('mm-p-img-panel')
+                    for the_pic_class in the_pic_class_lst:
+                        the_pic_tag = the_pic_class.find_element_by_tag_name('img')
+                        the_pic = the_pic_tag.get_attribute('src')
+                        the_pics_url_lst.append(the_pic)
+                        request = urllib.request.Request(url=the_pic, headers=header)
+                        response = urllib.request.urlopen(url=request, context=ctx)
+                        data = response.read()
+                        the_album_id = re.findall('album_id=([0-9]\S+?)&', go_the_album_url)
+                        the_album_id = the_album_id[0]
+                        print(the_album_id)
+                        path = 'Models' + '/' + name.strip() + '/' + str(the_album_id).strip()
+                        isThere = os.path.exists(path)
+                        if not isThere:
+                            os.makedirs(path)
+                        file_name = re.findall('/([A-Z]\S+?.jpg)', the_pic)
+                        file_name = file_name[0]
+                        print(file_name)
+                        f = open(path + '/' + file_name, 'wb')
+                        f.write(data)
+                        f.close()
+                except:
                     pass
         except:
             pass
