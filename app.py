@@ -27,7 +27,7 @@ header = {'User-Agent': user_agent}
 try:
     request = urllib.request.Request(url=url, headers=header)
     response = urllib.request.urlopen(url=request, context=ctx)
-    html = response.read()
+    html = response.read().decode('gbk', errors='replace')
     soup = BeautifulSoup(html, 'html.parser')
     tags = soup('a', 'lady-name')
     for tag in tags:
